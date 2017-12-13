@@ -1,0 +1,29 @@
+{
+  "name": "sambot",
+  "version": "1.0.0",
+  "description": "amazing messenger bot to find events",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start" : "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeschampsManon/sambot.git"
+  },
+  "keywords": [
+    "messenger",
+    "bot",
+    "events"
+  ],
+  "author": "SuperGirls",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DeschampsManon/sambot/issues"
+  },
+  "homepage": "https://github.com/DeschampsManon/sambot#readme",
+  "dependencies": {
+    "botbuilder": "^3.13.1",
+    "restify": "^6.3.4"
+  }
+}
