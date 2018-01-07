@@ -58,8 +58,8 @@ bot.dialog('Default', [
                 'Hi ' + session.userData.username + ', nice to see you',
                 'Thanks for joining our event program! We’d love to help you to find an event',
                 [
-                    botbuilder.CardAction.imBack(session, 'update preferences', 'update event preferences'),
-                    botbuilder.CardAction.imBack(session, 'get preferences', 'get event preferences'),
+                    botbuilder.CardAction.imBack(session, 'update preferences', 'update preferences'),
+                    botbuilder.CardAction.imBack(session, 'get preferences', 'get preferences'),
                     botbuilder.CardAction.imBack(session, 'suggest me events', 'suggest me events'),
                 ]
             )
