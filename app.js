@@ -23,9 +23,10 @@ let recognizer = new botbuilder.LuisRecognizer(process.env.LUIS_ENDPOINT);
 // Listening for user input
 server.post('/api/messages', connector.listen());
 
-let bot = new botbuilder.UniversalBot(connector, function(session){
+var bot = new botbuilder.UniversalBot(connector, function(session){
     session.beginDialog('Default');
 });
+
 bot.recognizer(recognizer);
 
 var show_user_preferences = function(session) {
@@ -87,7 +88,7 @@ bot.dialog('Login', [
         session.userData.token = process.env.TOKEN_TEST;
         axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.token)
             .then(function(response) {
-                session.userData.username = response.data.name;
+                session.userData.username = response.data.first_name;
                 session.beginDialog('Default');
             })
             .catch(function(error) {
@@ -116,6 +117,7 @@ bot.dialog('UpdateEventPreferences', [
                     response.data.categories.forEach(function(value){
                         categories_hash[value.name] = {id: value.id}
                     });
+                    categories_hash['No Matter'] = {id: 'nil'}
                     botbuilder.Prompts.choice(session, "Which kind of event could interest you ?", categories_hash, { listStyle: botbuilder.ListStyle.button });
                 })
                 .catch(function(error) {
@@ -143,19 +145,26 @@ bot.dialog('UpdateEventPreferences', [
             session.beginDialog('EventsSuggestions');
         }
     }
-]).triggerAction({matches: /^(update event preferences)/i });
+]).cancelAction('cancelAction', 'Ok, cancel.', {
+    matches: /^nevermind$|^cancel$/i,
+    confirmPrompt: "Are you sure?"
+}).triggerAction({
+    matches: 'UpdatePreferences'
+});
 
 bot.dialog('GetEventPreferences', [
     function (session) {
         show_user_preferences(session)
     }
-]).triggerAction({matches: /^(get event preferences)/i });
+]).triggerAction({
+    matches: 'GetPreferences'
+});
 
 bot.dialog('EventsSuggestions', [
     function (session) {
         let event_kind = session.userData.event_keyword != 'no matter' ? '&q=' + session.userData.event_keyword : '';
         let event_location = session.userData.event_location != 'no matter' ? '&location.address='+ session.userData.event_location : '';
-        let event_category = session.userData.event_category ? '&categories='+ session.userData.event_category : '';
+        let event_category = session.userData.event_category != 'nil' ? '&categories='+ session.userData.event_category : '';
         let event_price = session.userData.event_price != 'No Matter' ? '&price='+ session.userData.event_price : '';
         let event_date = session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
 
@@ -167,62 +176,64 @@ bot.dialog('EventsSuggestions', [
             + event_price
             + event_date
         )
-            .then(function(response) {
-                if(response) {
-                    const msg = new botbuilder.Message(session);
-                    msg.attachmentLayout(botbuilder.AttachmentLayout.carousel)
-                    const card = [];
-                    response.data.events.forEach(function(value){
-                        var thumbnail_url, address;
-                        if ( typeof value.logo !== 'undefined' && value.logo )
-                        {
-                            thumbnail_url = value.logo.url
-                        }
-                        else
-                        {
-                            thumbnail_url = 'https://cdn.evbstatic.com/s3-build/perm_001/aa36c3/django/images/home/banners/homepage_hero_banner_2.jpg'
-                        }
-                        if ( typeof value.venue !== 'undefined' && value.venue )
-                        {
-                            address = value.venue.address.localized_address_display
-                        }
-                        else {
-                            address = value.start.timezone
-                        }
-                        if ( typeof value.id !== 'undefined' && value.id ) {
-                            card.push(
-                                new botbuilder.HeroCard(session)
-                                    .title(truncate(value.description.text, 38))
-                                    .subtitle(dateFormat(value.start.utc, "dddd, mmmm dS yyyy, h:MM TT") +", "+ address )
-                                    .text(truncate(value.description.text, 300))
-                                    .images([botbuilder.CardImage.create(session, thumbnail_url)])
-                                    .buttons([
-                                        botbuilder.CardAction.openUrl(session, value.url, "read more"),
-                                        botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "get weather forecast"),
-                                        botbuilder.CardAction.postBack(session, `itinerary ${JSON.stringify({id: value.id})}`, "find an itinerary")
-                                    ])
-                            );
-                        }
-                    });
-                    msg.attachments(card);
-                    session.endDialog(msg);
-                } else {
-                    hero_card(
-                        session,
-                        'Sorry',
-                        'We didn\'t find any event matching with your preferences. You should change them',
-                        [
-                            botbuilder.CardAction.imBack(session, 'update event preferences', 'update event preferences'),
-                        ]
-                    )
-                }
+        .then(function(response) {
+            if(response.data.events.length) {
+                const msg = new botbuilder.Message(session);
+                msg.attachmentLayout(botbuilder.AttachmentLayout.carousel)
+                const card = [];
+                response.data.events.forEach(function(value){
+                    var thumbnail_url, address;
+                    if ( typeof value.logo !== 'undefined' && value.logo )
+                    {
+                        thumbnail_url = value.logo.url
+                    }
+                    else
+                    {
+                        thumbnail_url = 'https://cdn.evbstatic.com/s3-build/perm_001/aa36c3/django/images/home/banners/homepage_hero_banner_2.jpg'
+                    }
+                    if ( typeof value.venue !== 'undefined' && value.venue )
+                    {
+                        address = value.venue.address.localized_address_display
+                    }
+                    else {
+                        address = value.start.timezone
+                    }
+                    if ( typeof value.id !== 'undefined' && value.id ) {
+                        card.push(
+                            new botbuilder.HeroCard(session)
+                                .title(truncate(value.description.text, 38))
+                                .subtitle(dateFormat(value.start.utc, "dddd, mmmm dS yyyy, h:MM TT") +", "+ address )
+                                .text(truncate(value.description.text, 300))
+                                .images([botbuilder.CardImage.create(session, thumbnail_url)])
+                                .buttons([
+                                    botbuilder.CardAction.openUrl(session, value.url, "read more"),
+                                    botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "get weather forecast"),
+                                    botbuilder.CardAction.postBack(session, `itinerary ${JSON.stringify({id: value.id})}`, "find an itinerary")
+                                ])
+                        );
+                    }
+                });
+                msg.attachments(card);
+                session.endDialog(msg);
+            } else {
+                hero_card(
+                    session,
+                    'Sorry',
+                    'We didn\'t find any event matching with your preferences. You should change them',
+                    [
+                        botbuilder.CardAction.imBack(session, 'update event preferences', 'update event preferences'),
+                    ]
+                )
+            }
 
-            })
-            .catch(function(error) {
-                console.log("ERROR: "+ error);
-            });
+        })
+        .catch(function(error) {
+            console.log("ERROR: "+ error);
+        });
     }
-]).triggerAction({matches: /^(suggest me events)/i });
+]).triggerAction({
+    matches: 'Suggestions'
+});
 
 bot.dialog('Weather', [
     function (session, args) {
@@ -323,7 +334,10 @@ bot.dialog('AskUserPosition', [
             session.beginDialog('OpenGoogleMap');
         }
     }
-]);
+]).cancelAction('cancelAction', 'Ok, cancel.', {
+    matches: /^nevermind$|^cancel$/i,
+    confirmPrompt: "Are you sure?"
+});
 
 bot.dialog('Itinerary', [
     function (session, args) {
@@ -362,23 +376,23 @@ bot.dialog('OpenGoogleMap', [
                 '?expand=venue&token=' +
                 session.userData.token
                 + travel_mode)
-                .then(function(response) {
-                    session.userData.location_destination = response.data.venue.address.localized_address_display;
-                    const msg = new botbuilder.Message(session)
-                        .attachments([
-                            new botbuilder.HeroCard(session)
-                                .title('Amazing !!!')
-                                .text('I find an itinerary for you, for a better experience, open it in google map')
-                                .buttons([
-                                    botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.location_origin +'&destination=' + session.userData.location_destination, "See Itinerary"),
-                                ])
-                        ]);
-                    botbuilder.Prompts.text(session, msg);
-                    session.endDialog();
-                })
-                .catch(function(error) {
-                    console.log("ERROR: "+ error);
-                });
+            .then(function(response) {
+                session.userData.location_destination = response.data.venue.address.localized_address_display;
+                const msg = new botbuilder.Message(session)
+                    .attachments([
+                        new botbuilder.HeroCard(session)
+                            .title('Amazing !!!')
+                            .text('I find an itinerary for you, for a better experience, open it in google map')
+                            .buttons([
+                                botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.location_origin +'&destination=' + session.userData.location_destination, "See Itinerary"),
+                            ])
+                    ]);
+                botbuilder.Prompts.text(session, msg);
+                session.endDialog();
+            })
+            .catch(function(error) {
+                console.log("ERROR: "+ error);
+            });
         }
     }
 ]);
