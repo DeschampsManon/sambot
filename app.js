@@ -14,11 +14,11 @@ server.listen(process.env.port || process.env.PORT || 3978, function(){
 
 // Create chat connector
 let connector = new botbuilder.ChatConnector({
-    appId: process.env.APP_ID,
-    appPassword: process.env.APP_SECRET
+    appId: process.env.MICROSOFT_APP_ID,
+    appPassword: process.env.MICROSOFT_APP_PASSWORD
 });
 
-let recognizer = new botbuilder.LuisRecognizer(process.env.LUIS_ENDPOINT);
+var bot = new builder.UniversalBot(connector);
 
 // Listening for user input
 server.post('/api/messages', connector.listen());
@@ -28,6 +28,10 @@ var bot = new botbuilder.UniversalBot(connector, function(session){
 });
 
 bot.recognizer(recognizer);
+
+bot.dialog('/', function (session) {
+    session.send("Hello World");
+});
 
 var show_user_preferences = function(session) {
     const msg = new botbuilder.Message(session)
