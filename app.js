@@ -32,10 +32,10 @@ bot.dialog('/', function (session) {
 
 var show_user_preferences = function(session) {
     session.send("Your event preferences : \n\n Event Kind : "+ session.userData.event_human_keyword + "\n\n" +
-                                               "Event Place : "+ session.userData.event_human_location + "\n\n" +
-                                               "Event Category : "+ session.userData.event_human_category + "\n\n" +
-                                               "Event Price : "+ session.userData.event_price + "\n\n" +
-                                               "Event Date : "+ session.userData.event_human_date);
+        "Event Place : "+ session.userData.event_human_location + "\n\n" +
+        "Event Category : "+ session.userData.event_human_category + "\n\n" +
+        "Event Price : "+ session.userData.event_price + "\n\n" +
+        "Event Date : "+ session.userData.event_human_date);
     session.endDialog();
 }
 
@@ -143,7 +143,7 @@ bot.dialog('UpdateEventPreferences', [
     matches: /^nevermind$|^cancel$/i,
     confirmPrompt: "Are you sure?"
 }).triggerAction({
-    matches: 'UpdatePreferences'
+    matches: /^(update preferences)/i
 });
 
 bot.dialog('GetEventPreferences', [
@@ -151,7 +151,7 @@ bot.dialog('GetEventPreferences', [
         show_user_preferences(session)
     }
 ]).triggerAction({
-    matches: 'GetPreferences'
+    matches: /^(get preferences)/i
 });
 
 bot.dialog('EventsSuggestions', [
@@ -209,7 +209,7 @@ bot.dialog('EventsSuggestions', [
                                     .images([botbuilder.CardImage.create(session, thumbnail_url)])
                                     .buttons([
                                         botbuilder.CardAction.openUrl(session, value.url, "read more"),
-                                        botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "get weather forecast"),
+                                        botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "weather forecast"),
                                         botbuilder.CardAction.postBack(session, `itinerary ${JSON.stringify({id: value.id})}`, "find an itinerary")
                                     ])
                             );
@@ -234,7 +234,7 @@ bot.dialog('EventsSuggestions', [
             });
     }
 ]).triggerAction({
-    matches: 'Suggestions'
+    matches: /^(suggest me events)/i
 });
 
 bot.dialog('Weather', [
@@ -398,5 +398,3 @@ bot.dialog('OpenGoogleMap', [
         }
     }
 ]);
-
-
