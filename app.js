@@ -1,11 +1,10 @@
 require('dotenv').config({path: 'config.env'});
-
-const restify = require('restify');
 const botbuilder = require('botbuilder');
+const restify = require('restify');
 const axios = require('axios');
 const truncate = require('truncate');
 const dateFormat = require('dateformat');
-const mysql = require('mysql');
+const eventbrite_start_url = 'https://www.eventbriteapi.com/v3/';
 
 // Setup restify server
 const server = restify.createServer();
@@ -14,207 +13,244 @@ server.listen(process.env.port || process.env.PORT || 3978, function(){
 });
 
 // Create chat connector
-const connector = new botbuilder.ChatConnector({
+let connector = new botbuilder.ChatConnector({
     appId: process.env.APP_ID,
     appPassword: process.env.APP_SECRET
 });
 
-const database_connection = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-});
+let recognizer = new botbuilder.LuisRecognizer(process.env.LUIS_ENDPOINT);
 
 // Listening for user input
 server.post('/api/messages', connector.listen());
 
-var bot = new botbuilder.UniversalBot(connector, function(session){
-    session.send("Hmmm.. I didn't understand that. Can you say it differently");
+let bot = new botbuilder.UniversalBot(connector, function(session){
+    session.beginDialog('Default');
 });
-
-const luisEndpoint = process.env.LUIS_ENDPOINT;
-var recognizer = new botbuilder.LuisRecognizer(luisEndpoint);
 bot.recognizer(recognizer);
 
-var start_url = 'https://www.eventbriteapi.com/v3/'
-
-bot.dialog('Login', [
-    function(session) { 
-        var msg = new botbuilder.Message(session) 
-        .attachments([ 
-            new botbuilder.SigninCard(session) 
-                .text("Authorization needed") 
-                .button("Login", "https://www.eventbrite.com/oauth/authorize?response_type=code&client_id="+process.env.EVENTBRITE_CLIENT_ID) 
-        ]); 
-        botbuilder.Prompts.text(session, msg);
-    },
-    function(session, results) {
-        console.log(process.env.DB_HOST)
-        console.log(process.env.DB_USER)
-        console.log(process.env.DB_PASS)
-        console.log(process.env.DB_NAME)
-        database_connection.connect(function(err) {
-            if (err) throw err;
-            database_connection.query("SELECT hash FROM tokens WHERE code = '"+results.response+"'", function (err, result, fields) {
-                if (err) throw err;
-                console.log('a')
-                if (result.length > 0) {
-                    session.userData.token = result[0].hash
-                    session.beginDialog('Greeting');
-                } else {
-                    var msg = "Your code looks to be wrong, please try with an other code";
-                    session.send(msg);
-                    session.replaceDialog('Login', { reprompt: true })
-                }
-            });
-        });
-    } 
-]);
-
-bot.dialog('Greeting', [
-    function (session, args, next) {
-        if (session.userData.token) {
-            axios.get(start_url + 'users/me/?token=' + session.userData.token)
-            .then(response => {
-                session.send('Hi '+ response.data.name +', nice to see you');
-                session.endDialog("My name is Sambot, I'm here to help you to find an idea of activity. What can I do for you ?").endDialog();
-            })
-            .catch(error => {
-              console.log(error);
-            });
-        } else {
-            session.beginDialog('Login');
-        }
-    }
-]).triggerAction({
-    matches: 'Greeting'
-});
-
-function create_event_card(session, response) {
-    const msg = new botbuilder.Message(session);
-    msg.attachmentLayout(botbuilder.AttachmentLayout.carousel)
-    const card = [];
-    response.data.events.forEach(function(value){
-        var thumbnail_url, address;
-        if ( typeof value.logo !== 'undefined' && value.logo )
-        {
-            thumbnail_url = value.logo.url
-        }
-        else
-        {
-            thumbnail_url = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPoAAACsCAMAAABl5UHlAAAAFVBMVEXd3d3MzMzZ2dnR0dHV1dXX19fS0tJ77b4nAAACDUlEQVR4nO3c0ZaCIABFUQPk/z95XJYEpAIWOd7Ofq0HzoiMYTYMAAAAAAAAAAAAAAAAAAAAAAAAmDhbxZmzB/px9lZtPHusn+Xry283e/ZoP6qlfKI06xvTldrnHu92ibbX5Nzf49Ta69OHUay9IX0wWu0t6WLtTela7W3pUu2N6UrtrelC7c3pOu3t6TLtB9JDe9+RdXckfWn3XUfW3aH0pb3nwPo7lv5odx0H1l91ujOJeV/r2rs21emrvjPGTkjftb11+Z0xdlKTbn43fTBbx/0rQ+wlS3fTym1r/mcZsfSw91qOF0uPpnXxGlUrPdlvLx13rfSmFUwqfUzTC7dVpdLT+0uls10qPbvRXvhoIpXufzc9m/CFJV4qPVvhk4vb17+DVnoy45P57l+nv1Z6ctjj9/iVU18sPfpwGk93v7bsiaWHpS45tZfzIG2XS5+SXPbdwOcKkLQLpufitS9u109Pr3Oidvn0fGPq2a6e/rolF9rF09c2I5d2xXQbDuz6NuzjZcF0G+K2NqDvL+ulP+8ibt9ymS945NJtOLA735OXTA8bNXbvCQHF9MpnQQTTa5+C0UuvfgpGL7360SfSSb8u0gfSSf+x9DakXxnpzUi/srmg7icbUiLph509+re8VX7tRwHGcuC2i/9uhysXipZPzEFnjxsAAAAAAAAAAAAAAAAAAAAAAPwvf+8bDRHr18+cAAAAAElFTkSuQmCC'
-        }
-        if ( typeof value.venue !== 'undefined' && value.venue )
-        {
-            address = value.venue.address.localized_address_display
-        }
-        else {
-            address = value.start.timezone
-        }
-        if ( typeof value.id !== 'undefined' && value.id ) {
-            card.push(
-                new botbuilder.HeroCard(session)
-                .title(truncate(value.description.text, 38))
-                .subtitle(dateFormat(value.start.utc, "dddd, mmmm dS yyyy, h:MM TT") +", "+ address )
-                .text(truncate(value.description.text, 300))
-                .images([botbuilder.CardImage.create(session, thumbnail_url)])
-                .buttons([
-                    botbuilder.CardAction.openUrl(session, value.url, "Read More"),
-                    botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "Weather Forecast")
+var show_user_preferences = function(session) {
+    const msg = new botbuilder.Message(session)
+        .attachments([
+            new botbuilder.ReceiptCard(session)
+                .title('Your event preferences')
+                .items([
+                    botbuilder.ReceiptItem.create(session, session.userData.event_human_keyword, 'Event Kind :'),
+                    botbuilder.ReceiptItem.create(session, session.userData.event_human_location, 'Event Place :'),
+                    botbuilder.ReceiptItem.create(session, session.userData.event_human_category, 'Event Category :'),
+                    botbuilder.ReceiptItem.create(session, session.userData.event_price, 'Event Price :'),
+                    botbuilder.ReceiptItem.create(session, session.userData.event_human_date, 'Event Date :')
                 ])
-            );
-        }
-    });
-    msg.attachments(card);
-    session.send(msg);
+        ]);
+    session.endDialog(msg);
 }
 
-bot.dialog('Events', [
-    function (session, args, next) {
+var hero_card = function(session, title, text, buttons) {
+    const msg = new botbuilder.Message(session)
+    .attachments([
+        new botbuilder.HeroCard(session)
+            .title(title)
+            .text(text)
+            .buttons(buttons)
+    ]);
+    botbuilder.Prompts.text(session, msg);
+}
+
+bot.dialog('Default', [
+    function(session, args, next) {
         if (session.userData.token) {
-            var event_place_entity = botbuilder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.geography.city');
-            var event_keyword_entity = botbuilder.EntityRecognizer.findEntity(args.intent.entities, 'event_keyword');
-            var event_place = event_place_entity ? '&location.address='+event_place_entity.entity : '';
-            var event_keyword = event_keyword_entity ? '&q='+event_keyword_entity.entity : '';
-            axios.get(start_url + 'events/search/?expand=venue&token=' +  session.userData.token + "&sort_by=date" + event_place + event_keyword)
-            .then(response => {
-                create_event_card(session, response);
-            })
-            .catch(error => {
-                console.log("err: "+ error);
-            });
+            hero_card(
+                session,
+                'Hi ' + session.userData.username + ', nice to see you',
+                'Thanks for joining our event program! We’d love to help you to find an event',
+                [
+                    botbuilder.CardAction.imBack(session, 'update event preferences', 'update event preferences'),
+                    botbuilder.CardAction.imBack(session, 'get event preferences', 'get event preferences'),
+                    botbuilder.CardAction.imBack(session, 'suggest me events', 'suggest me events'),
+                ]
+            )
         } else {
             session.beginDialog('Login');
         }
     }
-]).triggerAction({
-    matches: 'Events'
-});
+]);
 
-var categories_hash = {};
-bot.dialog('Categories', [
-    function (session, args) {
-        if (session.userData.token) {
-            axios.get(start_url + 'categories/?expand=venue&token=' +  session.userData.token)
-            .then(response => {
+bot.dialog('Login', [
+    function(session) {
+        var msg = new botbuilder.Message(session)
+            .attachments([
+                new botbuilder.SigninCard(session)
+                    .text("Authorization needed")
+                    .button("Login", "https://www.eventbrite.com/oauth/authorize?response_type=code&client_id=" + process.env.EVENTBRITE_CLIENT_ID)
+            ]);
+        botbuilder.Prompts.text(session, msg);
+    }, function(session, results) {
+        session.userData.token = process.env.TOKEN_TEST;
+        axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.token)
+        .then(function(response) {
+            session.userData.username = response.data.name;
+            session.beginDialog('Default');
+        })
+        .catch(function(error) {
+            console.log('ERROR :' + error);
+        });
+    }
+]);
+
+let categories_hash = {};
+bot.dialog('UpdateEventPreferences', [
+    function (session) {
+        botbuilder.Prompts.text(session, 'Have you an idea of event behind your head ? Just say "no matter" if you want to skip ');
+    }, function (session, results) {
+        if (results.response) {
+            session.userData.event_human_keyword = results.response;
+            session.userData.event_keyword = results.response.replace(/ /g,"_");
+            botbuilder.Prompts.text(session, 'Where would you like to go ?  Just say "no matter" if you want to skip ');
+        }
+    },
+    function (session, results) {
+        if (results.response) {
+            session.userData.event_human_location = results.response;
+            session.userData.event_location = results.response.replace(/ /g,"_");
+            axios.get(eventbrite_start_url + 'categories/?expand=venue&token=' +  session.userData.token)
+            .then(function(response) {
                 response.data.categories.forEach(function(value){
                     categories_hash[value.name] = {id: value.id}
                 });
                 botbuilder.Prompts.choice(session, "Which kind of event could interest you ?", categories_hash, { listStyle: botbuilder.ListStyle.button });
             })
-            .catch(error => {
-                console.log("err: "+ error);
+            .catch(function(error) {
+                console.log("ERROR: " + error);
             });
-        } else {
-            session.beginDialog('Login');
         }
-    },
-    function (session, results) {
+    }, function (session, results) {
         if (results.response.entity) {
-            var category = categories_hash[results.response.entity];
-            axios.get(start_url + 'events/search/?expand=venue&token=' +  session.userData.token + "&categories=" + category.id)
-            .then(response => {
-                create_event_card(session, response);
-            })
-            .catch(error => {
-                console.log("err: "+ error);
-            });
+            console.log(categories_hash)
+            session.userData.event_human_category = results.response.entity;
+            session.userData.event_category = categories_hash[results.response.entity].id;
+            botbuilder.Prompts.choice(session, "Could you choose a price format ?", "Free|Paid|No Matter", { listStyle: botbuilder.ListStyle.button });
+        }
+    }, function (session, results) {
+        if (results.response.entity) {
+            session.userData.event_price = results.response.entity;
+            botbuilder.Prompts.text(session, 'When would you like to go (dd/mm/yyyy) ?  Just say "no matter" if you want to skip ');
+        }
+    }, function (session, results) {
+        if (results.response) {
+            let time = results.response.split('/');
+            session.userData.event_human_date = results.response
+            session.userData.event_date = time[2] + '-' + time[1] + '-' + time[0] + 'T13:00:00';
+            show_user_preferences(session);
+            session.beginDialog('EventsSuggestions');
         }
     }
-]).triggerAction({
-    matches: 'Categories'
-});
+]).triggerAction({matches: /^(update event preferences)/i });
+
+bot.dialog('GetEventPreferences', [
+    function (session) {
+        show_user_preferences(session)
+    }
+]).triggerAction({matches: /^(get event preferences)/i });
+
+bot.dialog('EventsSuggestions', [
+    function (session) {
+        let event_kind = session.userData.event_keyword != 'no matter' ? '&q=' + session.userData.event_keyword : '';
+        let event_location = session.userData.event_location != 'no matter' ? '&location.address='+ session.userData.event_location : '';
+        let event_category = session.userData.event_category ? '&categories='+ session.userData.event_category : '';
+        let event_price = session.userData.event_price != 'No Matter' ? '&price='+ session.userData.event_price : '';
+        let event_date = session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
+
+        axios.get(eventbrite_start_url + 'events/search?expand=venue&token='
+                                       +  session.userData.token + "&sort_by=date"
+                                       + event_kind
+                                       + event_location
+                                       + event_category
+                                       + event_price
+                                       + event_date
+        )
+        .then(function(response) {
+            if(response) {
+                const msg = new botbuilder.Message(session);
+                msg.attachmentLayout(botbuilder.AttachmentLayout.carousel)
+                const card = [];
+                response.data.events.forEach(function(value){
+                    var thumbnail_url, address;
+                    if ( typeof value.logo !== 'undefined' && value.logo )
+                    {
+                        thumbnail_url = value.logo.url
+                    }
+                    else
+                    {
+                        thumbnail_url = 'https://cdn.evbstatic.com/s3-build/perm_001/aa36c3/django/images/home/banners/homepage_hero_banner_2.jpg'
+                    }
+                    if ( typeof value.venue !== 'undefined' && value.venue )
+                    {
+                        address = value.venue.address.localized_address_display
+                    }
+                    else {
+                        address = value.start.timezone
+                    }
+                    if ( typeof value.id !== 'undefined' && value.id ) {
+                        card.push(
+                            new botbuilder.HeroCard(session)
+                            .title(truncate(value.description.text, 38))
+                            .subtitle(dateFormat(value.start.utc, "dddd, mmmm dS yyyy, h:MM TT") +", "+ address )
+                            .text(truncate(value.description.text, 300))
+                            .images([botbuilder.CardImage.create(session, thumbnail_url)])
+                            .buttons([
+                                botbuilder.CardAction.openUrl(session, value.url, "read more"),
+                                botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "get weather forecast")
+                            ])
+                        );
+                    }
+                });
+                msg.attachments(card);
+                session.send(msg);
+            } else {
+                hero_card(
+                    session,
+                    'Sorry',
+                    'We didn\'t find any event matching with your preferences. You should change them',
+                    [
+                        botbuilder.CardAction.imBack(session, 'update event preferences', 'update event preferences'),
+                    ]
+                )
+            }
+
+        })
+        .catch(function(error) {
+            console.log("ERROR: "+ error);
+        });
+    }
+]).triggerAction({matches: /^(suggest me events)/i });
 
 bot.dialog('Weather', [
     function (session, args) {
         session.dialogData = {};
-        var event_id = args.intent.matched.input
-        var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{")+1,event_id.lastIndexOf("}")) + "}]")
-        // Connexion to eventbrite API and get the event
-        axios.get(start_url + 'events/'+ hash[0].id+'/?expand=venue&token=' +  session.userData.token)
-        .then(response => {
-            // Explode date and time and format them
-            var start_date = new Date(response.data.start.utc);
-            var month = start_date.getUTCMonth() + 1;
-            var day = start_date.getUTCDate();
-            var year = start_date.getUTCFullYear();
-            var time = Date.parse(month + " " + day + ", " +year) - Date.parse((new Date).getUTCMonth() + " " + (new Date).getUTCDate() + ", " +(new Date).getUTCFullYear());
-            
-            session.dialogData.event_name = response.data.name.text;
+        var event_id = args.intent.matched.input;
+        var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{") + 1 , event_id.lastIndexOf("}")) + "}]");
+        console.log(hash[0].id)
+        axios.get(eventbrite_start_url + 'events/' + hash[0].id + '?expand=venue&token=' +  session.userData.token)
+        .then(function(response) {
+            let start_date = new Date(response.data.start.utc);
+            let month = start_date.getUTCMonth() + 1;
+            let day = start_date.getUTCDate();
+            let year = start_date.getUTCFullYear();
+            let time = Date.parse(month + " " + day + ", " + year) - Date.parse(((new Date).getUTCMonth() + 1) + " " + (new Date).getUTCDate() + ", " +(new Date).getUTCFullYear());
 
+
+            console.log('TIME :' + time)
+
+
+
+            session.dialogData.event_name = response.data.name.text;
             if ( typeof response.data.venue !== 'undefined' && response.data.venue )
             {
-                // Get latitude, longitude and date
                 session.dialogData.latitude = response.data.venue.address.latitude;
                 session.dialogData.longitude = response.data.venue.address.longitude;
                 session.dialogData.time = time.toString().slice(0,8);
-
-                // Connexion to darksky API and get the weather
-                axios.get(' https://api.darksky.net/forecast/'+process.env.DARKSKY_CLIENT_ID+'/'+session.dialogData.latitude+','+session.dialogData.latitude+','+session.dialogData.time+'?exclude=currently,flags')
-                .then(response => {
-                    var image_url
-                    // Get right icon (svg) for the weather
+                axios.get(' https://api.darksky.net/forecast/' + process.env.DARKSKY_CLIENT_ID + '/' + session.dialogData.latitude + ',' + session.dialogData.longitude + ',' + session.dialogData.time + '?exclude=currently,flags')
+                .then(function(response) {
+                    let image_url;
                     switch(response.data.daily.data[0].icon) {
                         case 'clear-day':
                             image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/day.svg'
@@ -247,29 +283,26 @@ bot.dialog('Weather', [
                             image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy-night-3.svg'
                             break;
                     }
-                    var msg = new botbuilder.Message(session) 
-                    
-                    // Create thumbnail card
-                    .attachments([ 
-                        new botbuilder.ThumbnailCard(session) 
-                        .title('Weather forecast for '+session.dialogData.event_name)
-                        .text(response.data.daily.data[0].summary+"\n\n Temperature Min : "+ response.data.daily.data[0].temperatureMin +"°C \n\n"+" Temperature Max : "+ response.data.daily.data[0].temperatureMax +"°C \n\n"+" Humidiy : "+ response.data.daily.data[0].humidity)
-                        .images([
-                            botbuilder.CardImage.create(session, image_url)   
-                        ])
-                    ]); 
+                    var msg = new botbuilder.Message(session)
+                        .attachments([
+                            new botbuilder.ThumbnailCard(session)
+                                .title('Weather forecast for '+session.dialogData.event_name)
+                                .text(response.data.daily.data[0].summary+"\n\n Temperature Min : "+ response.data.daily.data[0].temperatureMin +"\n\n"+" Temperature Max : "+ response.data.daily.data[0].temperatureMax +"\n\n"+" Humidiy : "+ response.data.daily.data[0].humidity)
+                                .images([
+                                    botbuilder.CardImage.create(session, image_url)
+                                ])
+                        ]);
                     session.endDialog(msg);
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.log("err: "+ error);
                 });
             } else {
-                // if there is no response from eventbrite API, send an error
                 session.endDialog('Sorry, I can\'t find weather forecast for this event');
-            }  
+            }
         })
-        .catch(error => {
-            console.log("err: "+ error);
-        });      
+        .catch(function(error) {
+            console.log("ERROR: "+ error);
+        });
     }
 ]).triggerAction({matches: /^(weather forecast)/i });
