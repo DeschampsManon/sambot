@@ -377,23 +377,23 @@ bot.dialog('OpenGoogleMap', [
                 '?expand=venue&token=' +
                 session.userData.token
                 + travel_mode)
-                .then(function(response) {
-                    session.userData.location_destination = response.data.venue.address.localized_address_display;
-                    const msg = new botbuilder.Message(session)
-                        .attachments([
-                            new botbuilder.HeroCard(session)
-                                .title('Amazing !!!')
-                                .text('I find an itinerary for you, for a better experience, open it in google map')
-                                .buttons([
-                                    botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.location_origin +'&destination=' + session.userData.location_destination, "See Itinerary"),
-                                ])
-                        ]);
-                    botbuilder.Prompts.text(session, msg);
-                    session.endDialog();
-                })
-                .catch(function(error) {
-                    console.log("ERROR: "+ error);
-                });
+            .then(function(response) {
+                session.userData.location_destination = response.data.venue.address.localized_address_display;
+                const msg = new botbuilder.Message(session)
+                    .attachments([
+                        new botbuilder.HeroCard(session)
+                            .title('Amazing !!!')
+                            .text('I find an itinerary for you, for a better experience, open it in google map')
+                            .buttons([
+                                botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.location_origin +'&destination=' + session.userData.location_destination, "See Itinerary"),
+                            ])
+                    ]);
+                botbuilder.Prompts.text(session, msg);
+                session.endDialog();
+            })
+            .catch(function(error) {
+                console.log("ERROR: "+ error);
+            });
         }
     }
 ]);
