@@ -223,7 +223,7 @@ bot.dialog('EventsSuggestions', [
                         'Sorry',
                         'We didn\'t find any event matching with your preferences. You should change them',
                         [
-                            botbuilder.CardAction.imBack(session, 'update event preferences', 'update event preferences'),
+                            botbuilder.CardAction.imBack(session, 'update preferences', 'update preferences'),
                         ]
                     )
                 }
@@ -243,75 +243,79 @@ bot.dialog('Weather', [
         var event_id = args.intent.matched.input;
         var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{") + 1 , event_id.lastIndexOf("}")) + "}]");
         axios.get(eventbrite_start_url + 'events/' + hash[0].id + '?expand=venue&token=' +  session.userData.token)
-            .then(function(response) {
+        .then(function(response) {
+            if ( typeof response.data.venue !== 'undefined' && response.data.venue )
+            {
                 let start_date = new Date(response.data.start.utc);
                 let month = start_date.getUTCMonth() + 1;
                 let day = start_date.getUTCDate();
                 let year = start_date.getUTCFullYear();
-                let time = Date.parse(month + " " + day + ", " + year) - Date.parse(((new Date).getUTCMonth() + 1) + " " + (new Date).getUTCDate() + ", " +(new Date).getUTCFullYear());
+                let date_parser = Date.parse(month + " " + day + ", " + year) - Date.parse(((new Date).getUTCMonth() + 1) + " " + (new Date).getUTCDate() + ", " +(new Date).getUTCFullYear());
+                let time = date_parser.toString().slice(0,8);
+                let event_name = response.data.name.text;
+                let latitude = response.data.venue.address.latitude;
+                let longitude = response.data.venue.address.longitude;
 
-                session.dialogData.event_name = response.data.name.text;
-                if ( typeof response.data.venue !== 'undefined' && response.data.venue )
-                {
-                    session.dialogData.latitude = response.data.venue.address.latitude;
-                    session.dialogData.longitude = response.data.venue.address.longitude;
-                    session.dialogData.time = time.toString().slice(0,8);
-                    axios.get(' https://api.darksky.net/forecast/' + process.env.DARKSKY_CLIENT_ID + '/' + session.dialogData.latitude + ',' + session.dialogData.longitude + ',' + session.dialogData.time + '?exclude=currently,flags')
-                        .then(function(response) {
-                            let image_url;
-                            switch(response.data.daily.data[0].icon) {
-                                case 'clear-day':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/day.svg'
-                                    break;
-                                case 'clear-night':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/night.svg'
-                                    break;
-                                case 'rain':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/rainy-6.svg'
-                                    break;
-                                case 'snow':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/snowy-6.svg'
-                                    break;
-                                case 'sleet':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/snowy-3.svg'
-                                    break;
-                                case 'wind':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy.svg'
-                                    break;
-                                case 'fog':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy.svg'
-                                    break;
-                                case 'cloudy':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy.svg'
-                                    break;
-                                case 'partly-cloudy-day':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy-day-3.svg'
-                                    break;
-                                case 'partly-cloudy-night':
-                                    image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy-night-3.svg'
-                                    break;
-                            }
-                            var msg = new botbuilder.Message(session)
-                                .attachments([
-                                    new botbuilder.ThumbnailCard(session)
-                                        .title('Weather forecast for '+session.dialogData.event_name)
-                                        .text(response.data.daily.data[0].summary+"\n\n Temperature Min : "+ response.data.daily.data[0].temperatureMin +"\n\n"+" Temperature Max : "+ response.data.daily.data[0].temperatureMax +"\n\n"+" Humidiy : "+ response.data.daily.data[0].humidity)
-                                        .images([
-                                            botbuilder.CardImage.create(session, image_url)
-                                        ])
-                                ]);
-                            session.endDialog(msg);
-                        })
-                        .catch(function(error) {
-                            console.log("err: "+ error);
-                        });
-                } else {
-                    session.endDialog('Sorry, I can\'t find weather forecast for this event');
-                }
-            })
-            .catch(function(error) {
-                console.log("ERROR: "+ error);
-            });
+                axios.get(' https://api.darksky.net/forecast/' + process.env.DARKSKY_CLIENT_ID + '/' + latitude + ',' + longitude + ',' + time + '?exclude=currently,flags')
+                .then(function(response) {
+                    if(response.data.daily) {
+                        let image_url;
+                        switch(response.data.daily.data[0].icon) {
+                            case 'clear-day':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/day.svg'
+                                break;
+                            case 'clear-night':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/night.svg'
+                                break;
+                            case 'rain':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/rainy-6.svg'
+                                break;
+                            case 'snow':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/snowy-6.svg'
+                                break;
+                            case 'sleet':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/snowy-3.svg'
+                                break;
+                            case 'wind':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy.svg'
+                                break;
+                            case 'fog':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy.svg'
+                                break;
+                            case 'cloudy':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy.svg'
+                                break;
+                            case 'partly-cloudy-day':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy-day-3.svg'
+                                break;
+                            case 'partly-cloudy-night':
+                                image_url = 'https://www.amcharts.com/wp-content/themes/amcharts2/css/img/icons/weather/animated/cloudy-night-3.svg'
+                                break;
+                        }
+                        var msg = new botbuilder.Message(session)
+                        .attachments([
+                            new botbuilder.ThumbnailCard(session)
+                                .title('Weather forecast for ' + event_name)
+                                .text(response.data.daily.data[0].summary+"\n\n Temperature Min : "+ response.data.daily.data[0].temperatureMin +"\n\n"+" Temperature Max : "+ response.data.daily.data[0].temperatureMax +"\n\n"+" Humidiy : "+ response.data.daily.data[0].humidity)
+                                .images([
+                                    botbuilder.CardImage.create(session, image_url)
+                                ])
+                        ]);
+                        session.endDialog(msg);
+                    } else {
+                        session.endDialog('Sorry, I can\'t find weather forecast for this event');
+                    }
+                })
+                .catch(function(error) {
+                    console.log("err: "+ error);
+                });
+            } else {
+                session.endDialog('Sorry, I can\'t find weather forecast for this event');
+            }
+        })
+        .catch(function(error) {
+            console.log("ERROR: "+ error);
+        });
     }
 ]).triggerAction({matches: /^(weather forecast)/i });
 
