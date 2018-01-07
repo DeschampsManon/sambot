@@ -347,10 +347,10 @@ bot.dialog('AskUserPosition', [
 
 bot.dialog('Itinerary', [
     function (session, args) {
+        event_id = args.intent.matched.input;
+        var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{") + 1 , event_id.lastIndexOf("}")) + "}]");
+        session.userData.current_event_id = hash[0].id
         if (session.userData.address && session.userData.city && session.userData.postal_code) {
-            event_id = args.intent.matched.input;
-            var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{") + 1 , event_id.lastIndexOf("}")) + "}]");
-            session.userData.current_event_id = hash[0].id
             session.send('I already saved an origin position : ' + session.userData.address + ', '+ session.userData.city + ' ' + session.userData.postal_code);
             botbuilder.Prompts.choice(session, "Would you like to continue with it ?", 'Yes|No', { listStyle: botbuilder.ListStyle.button });
         } else {
@@ -374,31 +374,31 @@ bot.dialog('OpenGoogleMap', [
         if (results.response.entity) {
             let travel_mode = results.response.entity != 'No Matter' ? '&travel_mode=' + results.response.entity : '';
             session.userData.location_origin = session.userData.address + '+' +
-                session.userData.city + '+' +
-                session.userData.postal_code;
+                                               session.userData.city + '+' +
+                                               session.userData.postal_code;
 
             axios.get(eventbrite_start_url + 'events/' +
-                session.userData.current_event_id +
-                '?expand=venue&token=' +
-                session.userData.token
-                + travel_mode)
-                .then(function(response) {
-                    session.userData.location_destination = response.data.venue.address.localized_address_display;
-                    const msg = new botbuilder.Message(session)
-                        .attachments([
-                            new botbuilder.HeroCard(session)
-                                .title('Amazing !!!')
-                                .text('I find an itinerary for you, for a better experience, open it in google map')
-                                .buttons([
-                                    botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.location_origin +'&destination=' + session.userData.location_destination, "See Itinerary"),
-                                ])
-                        ]);
-                    botbuilder.Prompts.text(session, msg);
-                    session.endDialog();
-                })
-                .catch(function(error) {
-                    console.log("ERROR: "+ error);
-                });
+                      session.userData.current_event_id +
+                      '?expand=venue&token=' +
+                      session.userData.token
+                      + travel_mode)
+            .then(function(response) {
+                session.userData.location_destination = response.data.venue.address.localized_address_display;
+                const msg = new botbuilder.Message(session)
+                    .attachments([
+                        new botbuilder.HeroCard(session)
+                            .title('Amazing !!!')
+                            .text('I find an itinerary for you, for a better experience, open it in google map')
+                            .buttons([
+                                botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.location_origin +'&destination=' + session.userData.location_destination, "See Itinerary"),
+                            ])
+                    ]);
+                botbuilder.Prompts.text(session, msg);
+                session.endDialog();
+            })
+            .catch(function(error) {
+                console.log("ERROR: "+ error);
+            });
         }
     }
 ]);
