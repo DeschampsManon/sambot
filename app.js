@@ -31,19 +31,12 @@ bot.dialog('/', function (session) {
 });
 
 var show_user_preferences = function(session) {
-    const msg = new botbuilder.Message(session)
-        .attachments([
-            new botbuilder.ReceiptCard(session)
-                .title('Your event preferences')
-                .items([
-                    botbuilder.ReceiptItem.create(session, session.userData.event_human_keyword, 'Event Kind :'),
-                    botbuilder.ReceiptItem.create(session, session.userData.event_human_location, 'Event Place :'),
-                    botbuilder.ReceiptItem.create(session, session.userData.event_human_category, 'Event Category :'),
-                    botbuilder.ReceiptItem.create(session, session.userData.event_price, 'Event Price :'),
-                    botbuilder.ReceiptItem.create(session, session.userData.event_human_date, 'Event Date :')
-                ])
-        ]);
-    session.endDialog(msg);
+    session.send("Your event preferences : \n\n Event Kind : "+ session.userData.event_human_keyword + "\n\n" +
+                                               "Event Place : "+ session.userData.event_human_location + "\n\n" +
+                                               "Event Category : "+ session.userData.event_human_category + "\n\n" +
+                                               "Event Price : "+ session.userData.event_price + "\n\n" +
+                                               "Event Date : "+ session.userData.event_human_date);
+    session.endDialog();
 }
 
 var hero_card = function(session, title, text, buttons) {
@@ -65,8 +58,8 @@ bot.dialog('Default', [
                 'Hi ' + session.userData.username + ', nice to see you',
                 'Thanks for joining our event program! We’d love to help you to find an event',
                 [
-                    botbuilder.CardAction.imBack(session, 'update event preferences', 'update event preferences'),
-                    botbuilder.CardAction.imBack(session, 'get event preferences', 'get event preferences'),
+                    botbuilder.CardAction.imBack(session, 'update preferences', 'update event preferences'),
+                    botbuilder.CardAction.imBack(session, 'get preferences', 'get event preferences'),
                     botbuilder.CardAction.imBack(session, 'suggest me events', 'suggest me events'),
                 ]
             )
@@ -163,12 +156,20 @@ bot.dialog('GetEventPreferences', [
 
 bot.dialog('EventsSuggestions', [
     function (session) {
-        let event_kind = session.userData.event_keyword != 'no matter' ? '&q=' + session.userData.event_keyword : '';
-        let event_location = session.userData.event_location != 'no matter' ? '&location.address='+ session.userData.event_location : '';
-        let event_category = session.userData.event_category != 'nil' ? '&categories='+ session.userData.event_category : '';
-        let event_price = session.userData.event_price != 'No Matter' ? '&price='+ session.userData.event_price : '';
-        let event_date = session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
+        let event_kind = session.userData.event_keyword && session.userData.event_keyword != 'no matter' ? '&q=' + session.userData.event_keyword : '';
+        let event_location = session.userData.event_location && session.userData.event_location != 'no matter' ? '&location.address='+ session.userData.event_location : '';
+        let event_category = session.userData.event_category && session.userData.event_category != 'nil' ? '&categories='+ session.userData.event_category : '';
+        let event_price =  session.userData.event_price && session.userData.event_price != 'No Matter' ? '&price='+ session.userData.event_price : '';
+        let event_date = session.userData.event_date && session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
 
+        console.log(eventbrite_start_url + 'events/search?expand=venue&token='
+            +  session.userData.token + "&sort_by=date"
+            + event_kind
+            + event_location
+            + event_category
+            + event_price
+            + event_date
+        )
         axios.get(eventbrite_start_url + 'events/search?expand=venue&token='
             +  session.userData.token + "&sort_by=date"
             + event_kind
