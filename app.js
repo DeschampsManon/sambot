@@ -27,7 +27,7 @@ let recognizer = new botbuilder.LuisRecognizer(process.env.LUIS_ENDPOINT);
 bot.recognizer(recognizer);
 
 bot.dialog('/', function (session) {
-    session.send("Hello World");
+    session.beginDialog('Default');
 });
 
 var show_user_preferences = function(session) {
