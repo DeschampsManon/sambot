@@ -27,7 +27,11 @@ let recognizer = new botbuilder.LuisRecognizer(process.env.LUIS_ENDPOINT);
 bot.recognizer(recognizer);
 
 bot.dialog('/', function (session) {
-    session.beginDialog('Default');
+    if (session.userData.token) {
+        session.beginDialog('Default');
+    } else {
+        session.beginDialog('Login');
+    }
 });
 
 bot.use({
@@ -60,20 +64,16 @@ var hero_card = function(session, title, text, buttons) {
 
 bot.dialog('Default', [
     function(session) {
-        if (session.userData.token) {
-            hero_card(
-                session,
-                'Hi ' + session.userData.username + ', nice to see you',
-                'Thanks for joining our event program! We’d love to help you to find an event',
-                [
-                    botbuilder.CardAction.imBack(session, 'update preferences', 'update preferences'),
-                    botbuilder.CardAction.imBack(session, 'get preferences', 'get preferences'),
-                    botbuilder.CardAction.imBack(session, 'suggest me events', 'suggest me events'),
-                ]
-            )
-        } else {
-            session.beginDialog('Login');
-        }
+        hero_card(
+            session,
+            'Hi ' + session.userData.username + ', nice to see you',
+            'Thanks for joining our event program! We’d love to help you to find an event',
+            [
+                botbuilder.CardAction.imBack(session, 'update preferences', 'update preferences'),
+                botbuilder.CardAction.imBack(session, 'get preferences', 'get preferences'),
+                botbuilder.CardAction.imBack(session, 'suggest me events', 'suggest me events'),
+            ]
+        )
     }
 ]);
 
@@ -164,28 +164,21 @@ bot.dialog('GetEventPreferences', [
 
 bot.dialog('EventsSuggestions', [
     function (session) {
-        let event_kind = session.userData.event_keyword && session.userData.event_keyword != 'no matter' ? '&q=' + session.userData.event_keyword : '';
-        let event_location = session.userData.event_location && session.userData.event_location != 'no matter' ? '&location.address='+ session.userData.event_location : '';
-        let event_category = session.userData.event_category && session.userData.event_category != 'nil' ? '&categories='+ session.userData.event_category : '';
-        let event_price =  session.userData.event_price && session.userData.event_price != 'No Matter' ? '&price='+ session.userData.event_price : '';
-        let event_date = session.userData.event_date && session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
+        if (session.userData.token) {
+            let event_kind = session.userData.event_keyword && session.userData.event_keyword != 'no_matter' ? '&q=' + session.userData.event_keyword : '';
+            let event_location = session.userData.event_location && session.userData.event_location != 'no_matter' ? '&location.address='+ session.userData.event_location : '';
+            let event_category = session.userData.event_category && session.userData.event_category != 'nil' ? '&categories='+ session.userData.event_category : '';
+            let event_price =  session.userData.event_price && session.userData.event_price != 'No Matter' ? '&price='+ session.userData.event_price : '';
+            let event_date = session.userData.event_date && session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
 
-        console.log(eventbrite_start_url + 'events/search?expand=venue&token='
-            +  session.userData.token + "&sort_by=date"
-            + event_kind
-            + event_location
-            + event_category
-            + event_price
-            + event_date
-        )
-        axios.get(eventbrite_start_url + 'events/search?expand=venue&token='
-            +  session.userData.token + "&sort_by=date"
-            + event_kind
-            + event_location
-            + event_category
-            + event_price
-            + event_date
-        )
+            axios.get(eventbrite_start_url + 'events/search?expand=venue&token='
+                +  session.userData.token + "&sort_by=date"
+                + event_kind
+                + event_location
+                + event_category
+                + event_price
+                + event_date
+            )
             .then(function(response) {
                 if(response.data.events.length) {
                     const msg = new botbuilder.Message(session);
@@ -240,6 +233,9 @@ bot.dialog('EventsSuggestions', [
             .catch(function(error) {
                 console.log("ERROR: "+ error);
             });
+        } else {
+            session.beginDialog('Login');
+        }
     }
 ]).triggerAction({
     matches: /^(suggest me events)/i
