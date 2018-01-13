@@ -97,7 +97,9 @@ bot.dialog('Login', [
                 console.log('ERROR :' + error);
             });
     }
-]);
+]).triggerAction({
+    matches: "None"
+});
 
 bot.dialog('UpdateEventPreferences', [
     function (session) {
