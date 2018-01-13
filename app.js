@@ -97,9 +97,7 @@ bot.dialog('Login', [
                 console.log('ERROR :' + error);
             });
     }
-]).triggerAction({
-    matches: "None"
-});
+]);
 
 bot.dialog('UpdateEventPreferences', [
     function (session) {
@@ -155,7 +153,7 @@ bot.dialog('UpdateEventPreferences', [
     matches: /^nevermind$|^cancel$/i,
     confirmPrompt: "Are you sure?"
 }).triggerAction({
-    matches: "UpdatePreferences"
+    matches: /^(update preferences)/i
 });
 
 bot.dialog('SaveCategory', [
@@ -175,7 +173,7 @@ bot.dialog('GetEventPreferences', [
         show_user_preferences(session)
     }
 ]).triggerAction({
-    matches: "GetPreferences"
+    matches: /^(get preferences)/i
 });
 
 bot.dialog('EventsSuggestions', [
@@ -222,7 +220,7 @@ bot.dialog('EventsSuggestions', [
         }
     }
 ]).triggerAction({
-    matches: "Suggestions"
+    matches: /^(suggest me events)/i
 });
 
 bot.dialog('Weather', [
