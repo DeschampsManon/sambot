@@ -99,7 +99,6 @@ bot.dialog('Login', [
     }
 ]);
 
-let categories_hash = {};
 bot.dialog('UpdateEventPreferences', [
     function (session) {
         botbuilder.Prompts.text(session, 'Have you an idea of event behind your head ? Just say "no matter" if you want to skip ');
@@ -109,28 +108,11 @@ bot.dialog('UpdateEventPreferences', [
             session.userData.event_keyword = results.response.replace(/ /g,"_");
             botbuilder.Prompts.text(session, 'Where would you like to go ?  Just say "no matter" if you want to skip ');
         }
-    },
-    function (session, results) {
+    }, function (session, results) {
         if (results.response) {
+            console.log(results.response)
             session.userData.event_human_location = results.response;
             session.userData.event_location = results.response.replace(/ /g,"_");
-            axios.get(eventbrite_start_url + 'categories/?expand=venue&token=' +  session.userData.token)
-                .then(function(response) {
-                    response.data.categories.forEach(function(value){
-                        categories_hash[value.name] = {id: value.id}
-                    });
-                    categories_hash['No Matter'] = {id: 'nil'}
-                    botbuilder.Prompts.choice(session, "Which kind of event could interest you ?", categories_hash, { listStyle: botbuilder.ListStyle.button });
-                })
-                .catch(function(error) {
-                    console.log("ERROR: " + error);
-                });
-        }
-    }, function (session, results) {
-        if (results.response.entity) {
-            console.log(categories_hash)
-            session.userData.event_human_category = results.response.entity;
-            session.userData.event_category = categories_hash[results.response.entity].id;
             botbuilder.Prompts.choice(session, "Could you choose a price format ?", "Free|Paid|No Matter", { listStyle: botbuilder.ListStyle.button });
         }
     }, function (session, results) {
@@ -143,8 +125,28 @@ bot.dialog('UpdateEventPreferences', [
             let time = results.response.split('/');
             session.userData.event_human_date = results.response
             session.userData.event_date = time[2] + '-' + time[1] + '-' + time[0] + 'T13:00:00';
-            show_user_preferences(session);
-            session.beginDialog('EventsSuggestions');
+            const categories_hash = {}
+            axios.get(eventbrite_start_url + 'categories/?expand=venue&token=' + session.userData.token)
+            .then(function (response) {
+                response.data.categories.forEach(function (value) {
+                    categories_hash[value.name] = {id: value.id}
+                });
+                categories_hash['No Matter'] = {id: 'nil'}
+                var suggestions_array = []
+                response.data.categories.forEach(function (value) {
+                    suggestions_array.push(botbuilder.CardAction.postBack(session, "category_name=" + value.name, value.name))
+                });
+                var msg = new botbuilder.Message(session)
+                    .text("Which kind of event could interest you ?")
+                    .suggestedActions(botbuilder.SuggestedActions.create(
+                        session, suggestions_array
+                    ));
+                session.send(msg);
+                session.userData.categories = categories_hash;
+            })
+            .catch(function (error) {
+                console.log("ERROR: " + error);
+            });
         }
     }
 ]).cancelAction('cancelAction', 'Ok, cancel.', {
@@ -152,6 +154,18 @@ bot.dialog('UpdateEventPreferences', [
     confirmPrompt: "Are you sure?"
 }).triggerAction({
     matches: /^(update preferences)/i
+});
+
+bot.dialog('SaveCategory', [
+    function (session, args) {
+        var intent = args.intent.matched.input;
+        session.userData.event_human_category = intent.split('category_name=')[1];
+        session.userData.event_category = session.userData.categories[intent.split('category_name=')[1]].id;
+        show_user_preferences(session);
+        session.beginDialog('EventsSuggestions');
+    }
+]).triggerAction({
+    matches: /^(category_name)/i
 });
 
 bot.dialog('GetEventPreferences', [
@@ -197,7 +211,6 @@ bot.dialog('EventsSuggestions', [
                         ]
                     )
                 }
-
             })
             .catch(function(error) {
                 console.log("ERROR: "+ error);
