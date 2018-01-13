@@ -153,7 +153,7 @@ bot.dialog('UpdateEventPreferences', [
     matches: /^nevermind$|^cancel$/i,
     confirmPrompt: "Are you sure?"
 }).triggerAction({
-    matches: /^(update preferences)/i
+    matches: "UpdatePreferences"
 });
 
 bot.dialog('SaveCategory', [
@@ -173,7 +173,7 @@ bot.dialog('GetEventPreferences', [
         show_user_preferences(session)
     }
 ]).triggerAction({
-    matches: /^(get preferences)/i
+    matches: "GetPreferences"
 });
 
 bot.dialog('EventsSuggestions', [
@@ -220,7 +220,7 @@ bot.dialog('EventsSuggestions', [
         }
     }
 ]).triggerAction({
-    matches: /^(suggest me events)/i
+    matches: "Suggestions"
 });
 
 bot.dialog('Weather', [
