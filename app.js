@@ -179,60 +179,29 @@ bot.dialog('EventsSuggestions', [
                 + event_price
                 + event_date
             )
-                .then(function(response) {
-                    if(response.data.events.length) {
-                        const msg = new botbuilder.Message(session);
-                        msg.attachmentLayout(botbuilder.AttachmentLayout.carousel)
-                        const card = [];
-                        response.data.events.forEach(function(value){
-                            var thumbnail_url, address;
-                            if ( typeof value.logo !== 'undefined' && value.logo )
-                            {
-                                thumbnail_url = value.logo.url
-                            }
-                            else
-                            {
-                                thumbnail_url = 'https://cdn.evbstatic.com/s3-build/perm_001/aa36c3/django/images/home/banners/homepage_hero_banner_2.jpg'
-                            }
-                            if ( typeof value.venue !== 'undefined' && value.venue )
-                            {
-                                address = value.venue.address.localized_address_display
-                            }
-                            else {
-                                address = value.start.timezone
-                            }
-                            if ( typeof value.id !== 'undefined' && value.id ) {
-                                card.push(
-                                    new botbuilder.HeroCard(session)
-                                        .title(truncate(value.description.text, 38))
-                                        .subtitle(dateFormat(value.start.utc, "dddd, mmmm dS yyyy, h:MM TT") +", "+ address )
-                                        .text(truncate(value.description.text, 300))
-                                        .images([botbuilder.CardImage.create(session, thumbnail_url)])
-                                        .buttons([
-                                            botbuilder.CardAction.openUrl(session, value.url, "read more"),
-                                            botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "weather forecast"),
-                                            botbuilder.CardAction.postBack(session, `itinerary ${JSON.stringify({id: value.id})}`, "find an itinerary")
-                                        ])
-                                );
-                            }
-                        });
-                        msg.attachments(card);
-                        session.endDialog(msg);
-                    } else {
-                        hero_card(
-                            session,
-                            'Sorry',
-                            'We didn\'t find any event matching with your preferences. You should change them',
-                            [
-                                botbuilder.CardAction.imBack(session, 'update preferences', 'update preferences'),
-                            ]
-                        )
-                    }
+            .then(function(response) {
+                if(response.data.events.length) {
+                    var cards = getCardsAttachments(session, response);
+                    // create reply with Carousel AttachmentLayout
+                    var reply = new botbuilder.Message(session)
+                                .attachmentLayout(botbuilder.AttachmentLayout.carousel)
+                                .attachments(cards);
+                    session.endDialog(reply);
+                } else {
+                    hero_card(
+                        session,
+                        'Sorry',
+                        'We didn\'t find any event matching with your preferences. You should change them',
+                        [
+                            botbuilder.CardAction.imBack(session, 'update preferences', 'update preferences'),
+                        ]
+                    )
+                }
 
-                })
-                .catch(function(error) {
-                    console.log("ERROR: "+ error);
-                });
+            })
+            .catch(function(error) {
+                console.log("ERROR: "+ error);
+            });
         } else {
             session.beginDialog('Login');
         }
@@ -329,18 +298,7 @@ bot.dialog('AskUserPosition', [
         botbuilder.Prompts.text(session, 'First, what the origin address ?');
     }, function (session, results) {
         if (results.response) {
-            console.log(results.response)
             session.userData.address = results.response;
-            botbuilder.Prompts.text(session, 'May have I the origin city too please ?');
-        }
-    }, function (session, results) {
-        if (results.response) {
-            session.userData.city = results.response;
-            botbuilder.Prompts.text(session, 'Thanks, and to finish I need the origin postal code ?');
-        }
-    }, function (session, results) {
-        if (results.response) {
-            session.userData.postal_code = results.response;
             session.beginDialog('OpenGoogleMap');
         }
     }
@@ -354,8 +312,8 @@ bot.dialog('Itinerary', [
         event_id = args.intent.matched.input;
         var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{") + 1 , event_id.lastIndexOf("}")) + "}]");
         session.userData.current_event_id = hash[0].id
-        if (session.userData.address && session.userData.city && session.userData.postal_code) {
-            session.send('I already saved an origin position : ' + session.userData.address + ', '+ session.userData.city + ' ' + session.userData.postal_code);
+        if (session.userData.address) {
+            session.send('I already saved an origin position : ' + session.userData.address);
             botbuilder.Prompts.choice(session, "Would you like to continue with it ?", 'Yes|No', { listStyle: botbuilder.ListStyle.button });
         } else {
             session.beginDialog('AskUserPosition');
@@ -377,10 +335,6 @@ bot.dialog('OpenGoogleMap', [
     }, function (session, results) {
         if (results.response.entity) {
             let travel_mode = results.response.entity != 'No Matter' ? '&travel_mode=' + results.response.entity : '';
-            session.userData.location_origin = session.userData.address + '+' +
-                                               session.userData.city + '+' +
-                                               session.userData.postal_code;
-
             axios.get(eventbrite_start_url + 'events/' +
                       session.userData.current_event_id +
                       '?expand=venue&token=' +
@@ -394,7 +348,7 @@ bot.dialog('OpenGoogleMap', [
                             .title('Amazing !!!')
                             .text('I find an itinerary for you, for a better experience, open it in google map')
                             .buttons([
-                                botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.location_origin +'&destination=' + session.userData.location_destination, "See Itinerary"),
+                                botbuilder.CardAction.openUrl(session, 'https://www.google.com/maps/dir/?api=1&origin='+ session.userData.address +'&destination=' + session.userData.location_destination, "See Itinerary"),
                             ])
                     ]);
                 botbuilder.Prompts.text(session, msg);
@@ -406,3 +360,27 @@ bot.dialog('OpenGoogleMap', [
         }
     }
 ]);
+
+function getCardsAttachments(session, response) {
+    const cards = [];
+    let thumbnail_url, address;
+    response.data.events.forEach(function(value) {
+        thumbnail_url = (typeof value.logo !== 'undefined' && value.logo) ? value.logo.url : 'https://cdn.evbstatic.com/s3-build/perm_001/aa36c3/django/images/home/banners/homepage_hero_banner_2.jpg';
+        address = (typeof value.venue !== 'undefined' && value.venue) ? value.venue.address.localized_address_display :  value.start.timezone;
+        if (typeof value.id !== 'undefined' && value.id) {
+            cards.push(
+                new botbuilder.HeroCard(session)
+                    .title(truncate(value.description.text, 38))
+                    .subtitle(dateFormat(value.start.utc, "dddd, mmmm dS yyyy, h:MM TT") + ", " + address)
+                    .text(truncate(value.description.text, 300))
+                    .images([botbuilder.CardImage.create(session, thumbnail_url)])
+                    .buttons([
+                        botbuilder.CardAction.openUrl(session, value.url, "read more"),
+                        botbuilder.CardAction.postBack(session, `weather forecast ${JSON.stringify({id: value.id})}`, "weather forecast"),
+                        botbuilder.CardAction.postBack(session, `itinerary ${JSON.stringify({id: value.id})}`, "find an itinerary")
+                    ])
+            );
+        }
+    })
+    return cards;
+}
