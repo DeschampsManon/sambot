@@ -131,10 +131,10 @@ bot.dialog('UpdateEventPreferences', [
                 response.data.categories.forEach(function (value) {
                     categories_hash[value.name] = {id: value.id}
                 });
-                categories_hash['No Matter'] = {id: 'nil'}
+                categories_hash['No Matter'] = {id: 'nil'};
                 var suggestions_array = []
-                response.data.categories.forEach(function (value) {
-                    suggestions_array.push(botbuilder.CardAction.postBack(session, "category_name=" + value.name, value.name))
+                Object.keys(categories_hash).forEach(function (key, value) {
+                    suggestions_array.push(botbuilder.CardAction.postBack(session, "category_name=" + key, key))
                 });
                 var msg = new botbuilder.Message(session)
                     .text("Which kind of event could interest you ?")
