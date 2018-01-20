@@ -5,7 +5,7 @@ const axios = require('axios');
 const truncate = require('truncate');
 const dateFormat = require('dateformat');
 const eventbrite_start_url = 'https://www.eventbriteapi.com/v3/';
-const mysql = require('mysql');
+const sql = require('mssql');
 
 // Setup restify server
 const server = restify.createServer();
@@ -13,12 +13,21 @@ server.listen(process.env.port || process.env.PORT || 3978, function(){
     console.log('%s bot started at %s', server.name, server.url);
 });
 
-const connection = mysql.createConnection({
-    host: process.env.DB_HOST,
+const dbConfig = {
+    server: process.env.DB_HOST,
+    database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASS,
-    database: process.env.DB_NAME
-});
+    port: 1433,
+    options: {
+        encrypt: true
+    },
+    pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 1000
+    }
+}
 
 // Create chat connector
 let connector = new botbuilder.ChatConnector({
@@ -96,13 +105,14 @@ bot.dialog('Login', [
         botbuilder.Prompts.text(session, msg);
     }, function(session, results) {
         if (results.response) {
-            console.log('RESPONSE : ' + results.response)
-            connection.connect();
-            connection.query("SELECT hash FROM tokens WHERE code = '" + results.response + "'", function (err, result) {
-                if (err) throw err;
-                if (result.length > 0) {
-                    session.userData.token = result[0].hash;
-                    axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.token)
+            sql.connect(dbConfig, function(err) {
+                if(err) console.log(err);
+                let request = new sql.Request();
+                request.query("SELECT hash FROM tokens WHERE code = '" + results.response + "'", function (err, recordset) {
+                    if(err) console.log(err);
+                    if (recordset.recordset.length > 0) {
+                        session.userData.token = recordset.recordset[0].hash;
+                        axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.token)
                         .then(function(response) {
                             session.userData.username = response.data.first_name;
                             session.beginDialog('Default');
@@ -110,13 +120,14 @@ bot.dialog('Login', [
                         .catch(function(error) {
                             console.log('ERROR :' + error);
                         });
-                } else {
-                    var msg = "Your code looks to be wrong, please try with an other code";
-                    session.send(msg);
-                    session.replaceDialog('Login', { reprompt: true })
-                }
+                    } else {
+                        var msg = "Your code looks to be wrong, please try with an other code";
+                        session.send(msg);
+                        session.replaceDialog('Login', { reprompt: true })
+                    }
+                    sql.close();
+                });
             });
-            connection.end();
         }
     }
 ]);
