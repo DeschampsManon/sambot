@@ -110,7 +110,7 @@ bot.dialog('Login', [
                 let request = new sql.Request();
                 request.query("SELECT hash FROM tokens WHERE code = '" + results.response + "'", function (err, recordset) {
                     if(err) console.log(err);
-                    if (recordset.recordset.length > 0) {
+                    if (recordset.recordset && recordset.recordset.length > 0) {
                         session.userData.token = recordset.recordset[0].hash;
                         axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.token)
                         .then(function(response) {
