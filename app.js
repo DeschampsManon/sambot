@@ -44,7 +44,7 @@ let recognizer = new botbuilder.LuisRecognizer(process.env.LUIS_ENDPOINT);
 bot.recognizer(recognizer);
 
 bot.dialog('/', function (session) {
-    if (session.userData.token) {
+    if (session.userData.h) {
         session.beginDialog('Default');
     } else {
         session.beginDialog('Login');
@@ -111,8 +111,8 @@ bot.dialog('Login', [
                 request.query("SELECT hash FROM tokens WHERE code = '" + results.response + "'", function (err, recordset) {
                     if(err) console.log(err);
                     if (recordset && recordset.recordset.length > 0) {
-                        session.userData.token = recordset.recordset[0].hash;
-                        axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.token)
+                        session.userData.h = recordset.recordset[0].hash;
+                        axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.h)
                         .then(function(response) {
                             session.userData.username = response.data.first_name;
                             session.beginDialog('Default');
@@ -159,7 +159,7 @@ bot.dialog('UpdateEventPreferences', [
             session.userData.event_human_date = results.response
             session.userData.event_date = time[2] + '-' + time[1] + '-' + time[0] + 'T13:00:00';
             const categories_hash = {}
-            axios.get(eventbrite_start_url + 'categories/?expand=venue&token=' + session.userData.token)
+            axios.get(eventbrite_start_url + 'categories/?expand=venue&token=' + session.userData.h)
             .then(function (response) {
                 response.data.categories.forEach(function (value) {
                     categories_hash[value.name] = {id: value.id}
@@ -211,7 +211,7 @@ bot.dialog('GetEventPreferences', [
 
 bot.dialog('EventsSuggestions', [
     function (session) {
-        if (session.userData.token) {
+        if (session.userData.h) {
             let event_kind = session.userData.event_keyword && session.userData.event_keyword != 'no_matter' ? '&q=' + session.userData.event_keyword : '';
             let event_location = session.userData.event_location && session.userData.event_location != 'no_matter' ? '&location.address='+ session.userData.event_location : '';
             let event_category = session.userData.event_category && session.userData.event_category != 'nil' ? '&categories='+ session.userData.event_category : '';
@@ -219,7 +219,7 @@ bot.dialog('EventsSuggestions', [
             let event_date = session.userData.event_date && session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
 
             axios.get(eventbrite_start_url + 'events/search?expand=venue&token='
-                +  session.userData.token + "&sort_by=date"
+                +  session.userData.h + "&sort_by=date"
                 + event_kind
                 + event_location
                 + event_category
@@ -261,7 +261,7 @@ bot.dialog('Weather', [
         session.dialogData = {};
         var event_id = args.intent.matched.input;
         var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{") + 1 , event_id.lastIndexOf("}")) + "}]");
-        axios.get(eventbrite_start_url + 'events/' + hash[0].id + '?expand=venue&token=' +  session.userData.token)
+        axios.get(eventbrite_start_url + 'events/' + hash[0].id + '?expand=venue&token=' +  session.userData.h)
         .then(function(response) {
             if ( typeof response.data.venue !== 'undefined' && response.data.venue )
             {
@@ -384,7 +384,7 @@ bot.dialog('OpenGoogleMap', [
             axios.get(eventbrite_start_url + 'events/' +
                       session.userData.current_event_id +
                       '?expand=venue&token=' +
-                      session.userData.token
+                      session.userData.h
                       + travel_mode)
             .then(function(response) {
                 session.userData.location_destination = response.data.venue.address.localized_address_display;
