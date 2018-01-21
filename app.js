@@ -44,7 +44,7 @@ let recognizer = new botbuilder.LuisRecognizer(process.env.LUIS_ENDPOINT);
 bot.recognizer(recognizer);
 
 bot.dialog('/', function (session) {
-    if (session.userData.h) {
+    if (session.userData.hash) {
         session.beginDialog('Default');
     } else {
         session.beginDialog('Login');
@@ -105,14 +105,10 @@ bot.dialog('Login', [
         botbuilder.Prompts.text(session, msg);
     }, function(session, results) {
         if (results.response) {
-            sql.connect(dbConfig, function(err) {
-                if(err) console.log(err);
-                let request = new sql.Request();
-                request.query("SELECT hash FROM tokens WHERE code = '" + results.response + "'", function (err, recordset) {
-                    if(err) console.log(err);
-                    if (recordset && recordset.recordset.length > 0) {
-                        session.userData.h = recordset.recordset[0].hash;
-                        axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.h)
+            getTokens(results.response).then(function(result) {
+                if (result.recordset[0]['Hash']) {
+                    session.userData.hash = result.recordset[0]['Hash'];
+                    axios.get(eventbrite_start_url + 'users/me?token=' + session.userData.hash)
                         .then(function(response) {
                             session.userData.username = response.data.first_name;
                             session.beginDialog('Default');
@@ -120,17 +116,32 @@ bot.dialog('Login', [
                         .catch(function(error) {
                             console.log('ERROR :' + error);
                         });
-                    } else {
-                        var msg = "Your code looks to be wrong, please try with an other code";
-                        session.send(msg);
-                        session.replaceDialog('Login', { reprompt: true })
-                    }
-                    sql.close();
-                });
+                } else {
+                    var msg = "Your code looks to be wrong, please try with an other code";
+                    session.send(msg);
+                    session.replaceDialog('Login', { reprompt: true })
+                }
             });
         }
     }
 ]);
+
+async function getTokens(results) {
+    return new Promise(async function (resolve, reject) {
+        try {
+            let pool = await sql.connect(dbConfig)
+            let result = await pool.request().query("SELECT Hash FROM Tokens WHERE Code = '" + results + "'");
+            // console.dir(result1)
+            resolve(result);
+        } catch (err) {
+            console.log(results)
+            console.log(err);
+            reject(err);
+        } finally {
+            await sql.close();
+        }
+    });
+};
 
 bot.dialog('UpdateEventPreferences', [
     function (session) {
@@ -159,7 +170,7 @@ bot.dialog('UpdateEventPreferences', [
             session.userData.event_human_date = results.response
             session.userData.event_date = time[2] + '-' + time[1] + '-' + time[0] + 'T13:00:00';
             const categories_hash = {}
-            axios.get(eventbrite_start_url + 'categories/?expand=venue&token=' + session.userData.h)
+            axios.get(eventbrite_start_url + 'categories/?expand=venue&token=' + session.userData.hash)
             .then(function (response) {
                 response.data.categories.forEach(function (value) {
                     categories_hash[value.name] = {id: value.id}
@@ -211,7 +222,7 @@ bot.dialog('GetEventPreferences', [
 
 bot.dialog('EventsSuggestions', [
     function (session) {
-        if (session.userData.h) {
+        if (session.userData.hash) {
             let event_kind = session.userData.event_keyword && session.userData.event_keyword != 'no_matter' ? '&q=' + session.userData.event_keyword : '';
             let event_location = session.userData.event_location && session.userData.event_location != 'no_matter' ? '&location.address='+ session.userData.event_location : '';
             let event_category = session.userData.event_category && session.userData.event_category != 'nil' ? '&categories='+ session.userData.event_category : '';
@@ -219,7 +230,7 @@ bot.dialog('EventsSuggestions', [
             let event_date = session.userData.event_date && session.userData.event_date.indexOf('undefined') < 0 ? '&start_date.range_start='+ session.userData.event_date : '';
 
             axios.get(eventbrite_start_url + 'events/search?expand=venue&token='
-                +  session.userData.h + "&sort_by=date"
+                +  session.userData.hash + "&sort_by=date"
                 + event_kind
                 + event_location
                 + event_category
@@ -261,7 +272,7 @@ bot.dialog('Weather', [
         session.dialogData = {};
         var event_id = args.intent.matched.input;
         var hash = JSON.parse("[{" + event_id.substring(event_id.lastIndexOf("{") + 1 , event_id.lastIndexOf("}")) + "}]");
-        axios.get(eventbrite_start_url + 'events/' + hash[0].id + '?expand=venue&token=' +  session.userData.h)
+        axios.get(eventbrite_start_url + 'events/' + hash[0].id + '?expand=venue&token=' +  session.userData.hash)
         .then(function(response) {
             if ( typeof response.data.venue !== 'undefined' && response.data.venue )
             {
@@ -384,7 +395,7 @@ bot.dialog('OpenGoogleMap', [
             axios.get(eventbrite_start_url + 'events/' +
                       session.userData.current_event_id +
                       '?expand=venue&token=' +
-                      session.userData.h
+                      session.userData.hash
                       + travel_mode)
             .then(function(response) {
                 session.userData.location_destination = response.data.venue.address.localized_address_display;
